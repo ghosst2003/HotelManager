@@ -27,9 +27,6 @@ backend/.env
 node_modules/
 npm-cache/
 
-# Build output
-backend/static/
-
 # Vite
 frontend/.vite/
 frontend/.vite-temp/
