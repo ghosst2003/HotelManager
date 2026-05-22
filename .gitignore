@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.env.bak
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables (secrets)
+.env
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+npm-cache/
+
+# Build output
+backend/static/
+
+# Vite
+frontend/.vite/
+frontend/.vite-temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
