@@ -34,7 +34,7 @@ def main():
             print(f"User '{args.username}' already exists (id={existing[0]})")
             return
 
-        hashed = pwd_context.hash(args.password)
+        hashed = pwd_context.hash(args.password[:72])
         session.execute(
             text("""
                 INSERT INTO users (username, password_hash, role, display_name, is_active, created_at, updated_at)
