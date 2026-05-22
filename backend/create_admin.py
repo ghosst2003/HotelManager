@@ -8,9 +8,7 @@ import argparse
 import sys
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 
 def main():
@@ -34,7 +32,7 @@ def main():
             print(f"User '{args.username}' already exists (id={existing[0]})")
             return
 
-        hashed = pwd_context.hash(args.password[:72])
+        hashed = bcrypt.hashpw(args.password.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
         session.execute(
             text("""
                 INSERT INTO users (username, password_hash, role, display_name, is_active, created_at, updated_at)
