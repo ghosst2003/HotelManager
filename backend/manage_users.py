@@ -1,29 +1,47 @@
 #!/usr/bin/env python3
 """User management script: add users, reset passwords.
 
+Reads DATABASE_URL from .env file automatically.
+
 Usage:
     # Add a user
-    python manage_users.py add --db-url "mysql+pymysql://root:pw@localhost/hotel_manager" --username zhangsan --password abc123 --name 张三 --role employee
+    python manage_users.py add --username zhangsan --password abc123 --name 张三 --role employee
 
     # Reset a user's password
-    python manage_users.py reset --db-url "mysql+pymysql://root:pw@localhost/hotel_manager" --username zhangsan --password newpass
+    python manage_users.py reset --username zhangsan --password newpass
 
     # List all users
-    python manage_users.py list --db-url "mysql+pymysql://root:pw@localhost/hotel_manager"
+    python manage_users.py list
 
     # Disable/enable a user
-    python manage_users.py disable --db-url "mysql+pymysql://root:pw@localhost/hotel_manager" --username zhangsan
-    python manage_users.py enable --db-url "mysql+pymysql://root:pw@localhost/hotel_manager" --username zhangsan
+    python manage_users.py toggle zhangsan disable
+    python manage_users.py toggle zhangsan enable
 """
 import argparse
 import sys
+import os
+from pathlib import Path
+
+# Read .env file
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 import bcrypt
 
 
-def get_db_session(db_url):
+def get_db_session():
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        print("Error: DATABASE_URL not found in .env file")
+        sys.exit(1)
     engine = create_engine(db_url, pool_pre_ping=True)
-    from sqlalchemy.orm import sessionmaker
     return sessionmaker(bind=engine)()
 
 
@@ -32,7 +50,7 @@ def hash_password(password: str) -> str:
 
 
 def cmd_add(args):
-    session = get_db_session(args.db_url)
+    session = get_db_session()
     existing = session.execute(text("SELECT id FROM users WHERE username = :username"), {"username": args.username}).fetchone()
     if existing:
         print(f"Error: user '{args.username}' already exists (id={existing[0]})")
@@ -52,7 +70,7 @@ def cmd_add(args):
 
 
 def cmd_reset(args):
-    session = get_db_session(args.db_url)
+    session = get_db_session()
     existing = session.execute(text("SELECT id, display_name FROM users WHERE username = :username"), {"username": args.username}).fetchone()
     if not existing:
         print(f"Error: user '{args.username}' not found")
@@ -69,7 +87,7 @@ def cmd_reset(args):
 
 
 def cmd_list(args):
-    session = get_db_session(args.db_url)
+    session = get_db_session()
     rows = session.execute(text("SELECT id, username, display_name, role, is_active, created_at FROM users ORDER BY id")).fetchall()
     if not rows:
         print("No users found.")
@@ -81,7 +99,7 @@ def cmd_list(args):
 
 
 def cmd_toggle(args):
-    session = get_db_session(args.db_url)
+    session = get_db_session()
     action = 1 if args.action == "enable" else 0
     existing = session.execute(text("SELECT id, display_name FROM users WHERE username = :username"), {"username": args.username}).fetchone()
     if not existing:
@@ -101,7 +119,6 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="command")
 
     p_add = sub.add_parser("add", help="Add a new user")
-    p_add.add_argument("--db-url", required=True)
     p_add.add_argument("--username", required=True)
     p_add.add_argument("--password", required=True)
     p_add.add_argument("--name", required=True)
@@ -109,18 +126,15 @@ if __name__ == "__main__":
     p_add.set_defaults(func=cmd_add)
 
     p_reset = sub.add_parser("reset", help="Reset a user's password")
-    p_reset.add_argument("--db-url", required=True)
     p_reset.add_argument("--username", required=True)
     p_reset.add_argument("--password", required=True)
     p_reset.set_defaults(func=cmd_reset)
 
     p_list = sub.add_parser("list", help="List all users")
-    p_list.add_argument("--db-url", required=True)
     p_list.set_defaults(func=cmd_list)
 
     p_toggle = sub.add_parser("toggle", help="Enable/disable a user")
-    p_toggle.add_argument("--db-url", required=True)
-    p_toggle.add_argument("--username", required=True)
+    p_toggle.add_argument("username")
     p_toggle.add_argument("action", choices=["enable", "disable"])
     p_toggle.set_defaults(func=cmd_toggle)
 
