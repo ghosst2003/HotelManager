@@ -1,9 +1,22 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Order, OrderItem, OperationLog, User
 from app.utils.permissions import can_modify_record, can_delete_record
+
+
+def _json_safe(value):
+    """Convert date/datetime/Decimal to JSON-safe types."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
+
+
+def _json_safe_dict(d: dict) -> dict:
+    return {k: _json_safe(v) for k, v in d.items()}
 
 
 def _calc_item_fields(item_data: dict) -> dict:
@@ -69,7 +82,7 @@ class OrderService:
             action="update",
             entity_type="order",
             entity_id=order_id,
-            details={"changes": {k: v for k, v in update_data.items() if k != "items"}},
+            details={"changes": _json_safe_dict({k: v for k, v in update_data.items() if k != "items"})},
         ))
         db.commit()
         db.refresh(order)
