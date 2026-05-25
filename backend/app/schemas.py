@@ -73,6 +73,7 @@ class OrderUpdate(BaseModel):
     confirmation_number: Optional[str] = None
     order_status: Optional[str] = None
     other_remarks: Optional[str] = None
+    salesperson: Optional[str] = None
     items: Optional[list[OrderItemCreate]] = None
 
 

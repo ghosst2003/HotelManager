@@ -168,6 +168,15 @@ async function handleExport() {
     const res = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
+    if (res.status === 401) {
+      ElMessage.error('登录已过期，请重新登录')
+      router.replace('/login')
+      return
+    }
+    if (!res.ok) {
+      ElMessage.error('导出失败')
+      return
+    }
     const blob = await res.blob()
     const dlUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
