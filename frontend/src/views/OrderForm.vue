@@ -179,6 +179,12 @@ onMounted(async () => {
           salesperson: i.salesperson || '',
           confirmation_number: i.confirmation_number || '',
           remarks: i.remarks || '',
+          additional_expenses: (i.additional_expenses || []).map(e => ({
+            item: e.item || '',
+            cost: Number(e.cost || 0),
+            expense: Number(e.expense || 0),
+          })),
+          _showExpenses: false,
         })),
       })
     } finally {
@@ -189,6 +195,8 @@ onMounted(async () => {
       date: new Date().toISOString().slice(0, 10),
       room_count: 1, cost_price: 0, sale_price: 0,
       salesperson: '', confirmation_number: '', remarks: '',
+      additional_expenses: [],
+      _showExpenses: false,
     })
   }
 })
@@ -198,7 +206,18 @@ async function handleSubmit() {
   if (!valid) return
   submitting.value = true
   try {
-    const payload = { ...form, salesperson: form.salesperson }
+    const cleanItems = form.items.map(item => {
+      const { _showExpenses, ...rest } = item
+      // Filter out empty expenses
+      rest.additional_expenses = (rest.additional_expenses || []).filter(
+        e => e.item || e.cost || e.expense,
+      )
+      if (!rest.additional_expenses.length) {
+        delete rest.additional_expenses
+      }
+      return rest
+    })
+    const payload = { ...form, items: cleanItems, salesperson: form.salesperson }
     if (isEdit.value) {
       await api.put(`/orders/${route.params.id}`, payload)
       ElMessage.success('更新成功')

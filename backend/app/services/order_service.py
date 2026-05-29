@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.models import Order, OrderItem, OperationLog, User
+from app.models import Order, OrderItem, OperationLog, User, AdditionalExpense
 from app.utils.permissions import can_modify_record, can_delete_record
 
 
@@ -20,14 +20,45 @@ def _json_safe_dict(d: dict) -> dict:
 
 
 def _calc_item_fields(item_data: dict) -> dict:
-    """Calculate gross_profit and profit_margin from cost/sale prices."""
+    """Calculate gross_profit and profit_margin from cost/sale prices and additional expenses."""
     cost = Decimal(str(item_data.get("cost_price", 0)))
     sale = Decimal(str(item_data.get("sale_price", 0)))
     gross = sale - cost
+
+    # Add additional expenses profit to gross profit
+    additional = item_data.get("additional_expenses") or []
+    exp_profit_sum = sum(
+        Decimal(str(e.get("profit", (e.get("expense", 0) - e.get("cost", 0))))) for e in additional
+    )
+    gross += exp_profit_sum
+
     margin = (gross / sale * 100).quantize(Decimal("0.01")) if sale > 0 else Decimal("0")
     item_data["gross_profit"] = float(gross)
     item_data["profit_margin"] = float(margin)
     return item_data
+
+
+def _create_expenses(db: Session, order_item_id: int, expenses: list) -> None:
+    """Create AdditionalExpense records for an order item."""
+    for e in expenses:
+        cost = Decimal(str(e.get("cost", 0)))
+        expense_val = Decimal(str(e.get("expense", 0)))
+        profit = expense_val - cost
+        db.add(AdditionalExpense(
+            order_item_id=order_item_id,
+            item=e.get("item", ""),
+            cost=cost,
+            expense=expense_val,
+            profit=profit,
+        ))
+
+
+def _replace_expenses(db: Session, order_item_id: int, expenses: list) -> None:
+    """Delete existing expenses and create new ones for an order item."""
+    db.query(AdditionalExpense).filter(
+        AdditionalExpense.order_item_id == order_item_id,
+    ).delete()
+    _create_expenses(db, order_item_id, expenses)
 
 
 class OrderService:
@@ -39,9 +70,12 @@ class OrderService:
         db.flush()
 
         for item_data in items_data:
+            expenses = item_data.pop("additional_expenses", None) or []
             item_data = _calc_item_fields(item_data)
             item = OrderItem(order_id=order.id, **item_data)
             db.add(item)
+            db.flush()  # Get item.id
+            _create_expenses(db, item.id, expenses)
 
         db.add(OperationLog(
             user_id=created_by,
@@ -74,8 +108,12 @@ class OrderService:
         if "items" in update_data and update_data["items"] is not None:
             db.query(OrderItem).filter(OrderItem.order_id == order_id).delete()
             for item_data in update_data["items"]:
+                expenses = item_data.pop("additional_expenses", None) or []
                 item_data = _calc_item_fields(item_data)
-                db.add(OrderItem(order_id=order_id, **item_data))
+                item = OrderItem(order_id=order_id, **item_data)
+                db.add(item)
+                db.flush()
+                _create_expenses(db, item.id, expenses)
 
         db.add(OperationLog(
             user_id=user.id,

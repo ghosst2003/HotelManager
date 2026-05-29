@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime,
-    DECIMAL, JSON, Enum as SQLEnum, ForeignKey, func, SmallInteger
+    DECIMAL, ForeignKey, func, SmallInteger
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -18,7 +18,7 @@ class User(TimestampMixin, Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    role = Column(SQLEnum("employee", "finance", "admin"), nullable=False, default="employee")
+    role = Column(String(30), nullable=False, default="employee")
     display_name = Column(String(100), nullable=False)
     is_active = Column(SmallInteger, nullable=False, default=1)
 
@@ -36,11 +36,7 @@ class Order(TimestampMixin, Base):
     guest_count = Column(Integer, nullable=False, default=1)
     booking_date = Column(Date, nullable=False)
     confirmation_number = Column(String(100), nullable=True)
-    order_status = Column(
-        SQLEnum("未处理", "已确认", "已入住", "已取消"),
-        nullable=False,
-        default="未处理",
-    )
+    order_status = Column(String(30), nullable=False, default="未处理")
     other_remarks = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_deleted = Column(SmallInteger, nullable=False, default=0)
@@ -65,7 +61,7 @@ class OrderItem(Base):
         DECIMAL(10, 2),
         nullable=False,
         default=0,
-        comment="Auto-calculated: sale_price - cost_price",
+        comment="Auto-calculated: sale_price - cost_price + sum(additional_expenses.profit)",
     )
     profit_margin = Column(
         DECIMAL(5, 2),
@@ -80,6 +76,22 @@ class OrderItem(Base):
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     order = relationship("Order", back_populates="items")
+    additional_expenses = relationship("AdditionalExpense", back_populates="order_item", cascade="all, delete-orphan")
+
+
+class AdditionalExpense(Base):
+    __tablename__ = "additional_expenses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False)
+    item = Column(String(255), nullable=False, default="")
+    cost = Column(DECIMAL(10, 2), nullable=False, default=0)
+    expense = Column(DECIMAL(10, 2), nullable=False, default=0)
+    profit = Column(DECIMAL(10, 2), nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    order_item = relationship("OrderItem", back_populates="additional_expenses")
 
 
 class OperationLog(Base):
@@ -88,15 +100,12 @@ class OperationLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     action = Column(
-        SQLEnum(
-            "create", "update", "delete", "login", "export",
-            "user_create", "user_disable", "user_enable", "user_delete",
-        ),
+        String(50),
         nullable=False,
     )
     entity_type = Column(String(50), nullable=False)
     entity_id = Column(Integer, nullable=True)
-    details = Column(JSON, nullable=True)
+    details = Column(Text, nullable=True)
     ip_address = Column(String(45), nullable=True)
     created_at = Column(DateTime, nullable=False, default=func.now())
 

@@ -2,11 +2,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import User, Order, OrderItem, OperationLog
+from app.models import User, Order, OrderItem, OperationLog, AdditionalExpense
 from app.dependencies import get_current_user, require_role
-from app.schemas import OrderCreate, OrderUpdate, OrderResponse, PageResponse, OrderItemResponse
+from app.schemas import OrderCreate, OrderUpdate, OrderResponse, PageResponse, OrderItemResponse, AdditionalExpense
 from app.services.order_service import OrderService
 from app.utils.export import export_orders_to_excel
 
@@ -17,6 +17,18 @@ def _order_to_response(order: Order) -> dict:
     """Convert Order ORM to response dict."""
     items = []
     for item in order.items:
+        additional = None
+        if item.additional_expenses:
+            additional = [
+                AdditionalExpense(
+                    item=e.item,
+                    cost=Decimal(str(e.cost)),
+                    expense=Decimal(str(e.expense)),
+                    profit=Decimal(str(e.profit)),
+                )
+                for e in item.additional_expenses
+            ]
+
         items.append(OrderItemResponse(
             id=item.id,
             date=item.date,
@@ -28,6 +40,7 @@ def _order_to_response(order: Order) -> dict:
             salesperson=item.salesperson,
             confirmation_number=item.confirmation_number,
             remarks=item.remarks,
+            additional_expenses=additional,
             created_at=item.created_at,
             updated_at=item.updated_at,
         ))
@@ -94,7 +107,9 @@ def list_orders(
         query = query.filter(Order.order_status == order_status)
 
     total = query.count()
-    orders = query.order_by(Order.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    orders = query.options(
+        joinedload(Order.items).joinedload(OrderItem.additional_expenses),
+    ).order_by(Order.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     return PageResponse(
         total=total,

@@ -38,6 +38,13 @@ class TokenResponse(BaseModel):
 
 # --- Orders ---
 
+class AdditionalExpense(BaseModel):
+    item: str = ""
+    cost: Decimal = Decimal("0")
+    expense: Decimal = Decimal("0")
+    profit: Decimal = Decimal("0")
+
+
 class OrderItemCreate(BaseModel):
     date: date
     room_count: int = 1
@@ -46,6 +53,7 @@ class OrderItemCreate(BaseModel):
     salesperson: Optional[str] = None
     confirmation_number: Optional[str] = None
     remarks: Optional[str] = None
+    additional_expenses: Optional[list[AdditionalExpense]] = None
 
 
 class OrderCreate(BaseModel):
@@ -77,12 +85,20 @@ class OrderUpdate(BaseModel):
     items: Optional[list[OrderItemCreate]] = None
 
 
-class OrderItemResponse(OrderItemCreate):
+class OrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    date: date
+    room_count: int
+    cost_price: Decimal
+    sale_price: Decimal
     gross_profit: Decimal
     profit_margin: Decimal
+    salesperson: Optional[str]
+    confirmation_number: Optional[str]
+    remarks: Optional[str]
+    additional_expenses: Optional[list[AdditionalExpense]] = None
     created_at: datetime
     updated_at: datetime
 
