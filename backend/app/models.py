@@ -1,7 +1,8 @@
+import json
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime,
-    DECIMAL, ForeignKey, func, SmallInteger
+    DECIMAL, ForeignKey, func, SmallInteger, event
 )
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -110,3 +111,11 @@ class OperationLog(Base):
     created_at = Column(DateTime, nullable=False, default=func.now())
 
     user = relationship("User")
+
+
+@event.listens_for(OperationLog, "before_insert")
+@event.listens_for(OperationLog, "before_update")
+def _serialize_log_details(mapper, connection, target):
+    """Auto-serialize dict details to JSON string for Text column."""
+    if isinstance(target.details, dict):
+        target.details = json.dumps(target.details)

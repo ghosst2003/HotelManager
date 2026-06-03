@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Any
+import json
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 # --- Auth ---
@@ -149,3 +150,13 @@ class LogResponse(BaseModel):
     details: Optional[dict]
     ip_address: Optional[str]
     created_at: datetime
+
+    @field_validator("details", mode="before")
+    @classmethod
+    def parse_details(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return v
